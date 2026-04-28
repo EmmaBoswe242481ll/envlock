@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+npm-debug.log*
+.env.local
+*.log
+*.swo
+*.tsbuildinfo
+.env
+.cache/
+coverage/
+*.swp
+out/
