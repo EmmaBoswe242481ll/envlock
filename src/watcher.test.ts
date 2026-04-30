@@ -13,6 +13,21 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Collects events from a watcher, writes new content, and returns filtered changed events. */
+async function collectChangedEvents(
+  tmpPath: string,
+  newContent: string,
+  options: Parameters<typeof watchEnvFile>[2]
+): Promise<WatchEvent[]> {
+  const events: WatchEvent[] = [];
+  const watcher = watchEnvFile(tmpPath, (e) => events.push(e), options);
+  await sleep(150);
+  fs.writeFileSync(tmpPath, newContent, 'utf-8');
+  await sleep(300);
+  watcher.close();
+  return events.filter((e) => e.type === 'changed');
+}
+
 describe('watchEnvFile', () => {
   let tmpPath: string;
 
@@ -40,37 +55,19 @@ describe('watchEnvFile', () => {
 
   it('reports unchanged when only values differ in onlyKeys mode', async () => {
     tmpPath = writeTempEnv('FOO=bar\n');
-    const events: WatchEvent[] = [];
-
-    const watcher = watchEnvFile(tmpPath, (e) => events.push(e), {
+    const changed = await collectChangedEvents(tmpPath, 'FOO=newvalue\n', {
       debounceMs: 100,
       onlyKeys: true,
     });
-
-    await sleep(150);
-    fs.writeFileSync(tmpPath, 'FOO=newvalue\n', 'utf-8');
-    await sleep(300);
-
-    watcher.close();
-    const changed = events.filter((e) => e.type === 'changed');
     expect(changed.length).toBe(0);
   });
 
   it('detects key addition in onlyKeys mode', async () => {
     tmpPath = writeTempEnv('FOO=bar\n');
-    const events: WatchEvent[] = [];
-
-    const watcher = watchEnvFile(tmpPath, (e) => events.push(e), {
+    const changed = await collectChangedEvents(tmpPath, 'FOO=bar\nNEW_KEY=value\n', {
       debounceMs: 100,
       onlyKeys: true,
     });
-
-    await sleep(150);
-    fs.writeFileSync(tmpPath, 'FOO=bar\nNEW_KEY=value\n', 'utf-8');
-    await sleep(300);
-
-    watcher.close();
-    const changed = events.filter((e) => e.type === 'changed');
     expect(changed.length).toBeGreaterThan(0);
   });
 
