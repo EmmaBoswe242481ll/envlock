@@ -58,7 +58,14 @@ export function loadEnvFile(filePath: string): LoadedEnv {
     throw new EnvLoadError(`Env file not found: ${resolved}`);
   }
 
-  const content = fs.readFileSync(resolved, "utf-8");
+  let content: string;
+  try {
+    content = fs.readFileSync(resolved, "utf-8");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new EnvLoadError(`Failed to read env file: ${resolved} (${message})`);
+  }
+
   const vars = parseEnvContent(content);
 
   return { vars, filePath: resolved };
