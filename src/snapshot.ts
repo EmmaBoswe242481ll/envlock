@@ -59,6 +59,15 @@ export function readSnapshot(filePath: string): Snapshot {
 }
 
 /**
+ * Validates that a snapshot's checksum matches its keys.
+ * Returns true if the snapshot is internally consistent, false otherwise.
+ */
+export function validateSnapshot(snapshot: Snapshot): boolean {
+  const expected = generateChecksum(snapshot.keys);
+  return snapshot.checksum === expected;
+}
+
+/**
  * Compares current env keys against a stored snapshot.
  * Returns an object describing added/removed keys and whether they match.
  */
