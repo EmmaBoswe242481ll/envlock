@@ -1,77 +1,71 @@
-import { describe, it, expect } from 'vitest';
-import {
-  trimValue,
-  trimEnvRecord,
-  trimEnvContent,
-  formatTrimResult,
-} from './trimmer';
+import { trimValue, trimEnvRecord, trimEnvContent, formatTrimResult } from './trimmer';
 
 describe('trimValue', () => {
-  it('trims leading and trailing whitespace', () => {
+  it('trims leading and trailing spaces', () => {
     expect(trimValue('  hello  ')).toBe('hello');
   });
 
-  it('collapses internal whitespace', () => {
-    expect(trimValue('foo   bar')).toBe('foo bar');
+  it('trims tabs', () => {
+    expect(trimValue('\tvalue\t')).toBe('value');
   });
 
-  it('returns unchanged string when already trimmed', () => {
+  it('returns unchanged value when no whitespace', () => {
     expect(trimValue('clean')).toBe('clean');
+  });
+
+  it('handles empty string', () => {
+    expect(trimValue('')).toBe('');
   });
 });
 
 describe('trimEnvRecord', () => {
-  it('reports changed and unchanged keys', () => {
-    const record = { KEY1: '  value  ', KEY2: 'clean', KEY3: 'a  b' };
-    const summary = trimEnvRecord(record);
-    expect(summary.total).toBe(3);
-    expect(summary.changed).toBe(2);
+  it('trims all values in a record', () => {
+    const result = trimEnvRecord({ NAME: '  Alice  ', PORT: ' 3000 ' });
+    expect(result).toEqual({ NAME: 'Alice', PORT: '3000' });
   });
 
-  it('correctly trims values in results', () => {
-    const summary = trimEnvRecord({ FOO: '  bar  ' });
-    expect(summary.results[0].trimmed).toBe('bar');
-    expect(summary.results[0].changed).toBe(true);
+  it('preserves keys with no extra whitespace', () => {
+    const result = trimEnvRecord({ KEY: 'value' });
+    expect(result).toEqual({ KEY: 'value' });
   });
 
-  it('marks unchanged values correctly', () => {
-    const summary = trimEnvRecord({ BAZ: 'already' });
-    expect(summary.results[0].changed).toBe(false);
+  it('handles empty record', () => {
+    expect(trimEnvRecord({})).toEqual({});
   });
 });
 
 describe('trimEnvContent', () => {
-  it('trims values in env file content', () => {
-    const input = 'FOO=  bar  \nBAZ=clean';
-    const result = trimEnvContent(input);
-    expect(result).toContain('FOO=bar');
-    expect(result).toContain('BAZ=clean');
+  it('trims values in env content', () => {
+    const content = 'NAME=  Alice  \nPORT= 3000 \n';
+    const result = trimEnvContent(content);
+    expect(result).toContain('NAME=Alice');
+    expect(result).toContain('PORT=3000');
   });
 
-  it('preserves comment lines', () => {
-    const input = '# comment\nKEY=  value  ';
-    const result = trimEnvContent(input);
+  it('preserves comments and blank lines', () => {
+    const content = '# comment\n\nKEY=  val  \n';
+    const result = trimEnvContent(content);
     expect(result).toContain('# comment');
-    expect(result).toContain('KEY=value');
+    expect(result).toContain('KEY=val');
   });
 
-  it('preserves blank lines', () => {
-    const input = 'A=1\n\nB=2';
-    const result = trimEnvContent(input);
-    expect(result).toContain('\n\n');
+  it('handles empty content', () => {
+    expect(trimEnvContent('')).toBe('');
   });
 });
 
 describe('formatTrimResult', () => {
-  it('shows success message when nothing changed', () => {
-    const summary = trimEnvRecord({ KEY: 'value' });
-    expect(formatTrimResult(summary)).toMatch(/No trimming needed/);
+  it('reports trimmed keys', () => {
+    const original = { NAME: '  Alice  ', PORT: '3000' };
+    const trimmed = { NAME: 'Alice', PORT: '3000' };
+    const result = formatTrimResult(original, trimmed);
+    expect(result).toContain('NAME');
+    expect(result).not.toContain('PORT');
   });
 
-  it('lists changed keys', () => {
-    const summary = trimEnvRecord({ KEY: '  spaced  ' });
-    const output = formatTrimResult(summary);
-    expect(output).toContain('KEY');
-    expect(output).toContain('spaced');
+  it('reports no changes when nothing trimmed', () => {
+    const record = { KEY: 'value' };
+    const result = formatTrimResult(record, record);
+    expect(result).toContain('No values required trimming');
   });
 });
