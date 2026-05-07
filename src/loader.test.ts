@@ -49,6 +49,11 @@ describe("parseEnvContent", () => {
     const result = parseEnvContent("FOO=bar\r\nBAZ=qux");
     expect(result).toEqual({ FOO: "bar", BAZ: "qux" });
   });
+
+  it("handles values containing equals signs", () => {
+    const result = parseEnvContent("URL=http://example.com?foo=bar&baz=qux");
+    expect(result).toEqual({ URL: "http://example.com?foo=bar&baz=qux" });
+  });
 });
 
 describe("loadEnvFile", () => {
@@ -61,6 +66,11 @@ describe("loadEnvFile", () => {
 
   it("throws EnvLoadError for missing file", () => {
     expect(() => loadEnvFile("/nonexistent/.env")).toThrow(EnvLoadError);
+  });
+
+  it("includes the missing file path in the error message", () => {
+    const missingPath = "/nonexistent/.env";
+    expect(() => loadEnvFile(missingPath)).toThrow(missingPath);
   });
 
   it("returns the resolved file path", () => {
