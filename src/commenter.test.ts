@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   parseWithComments,
   applyComments,
@@ -6,80 +6,71 @@ import {
   formatCommentResult,
 } from "./commenter";
 
-const sampleEnv = `# header comment
-DB_HOST=localhost # primary db
+const sampleEnv = `# App settings
+APP_NAME=MyApp
+# Database
+DB_HOST=localhost
 DB_PORT=5432
-API_KEY=secret # keep private
-DEBUG=true
+API_KEY=secret
 `;
 
 describe("parseWithComments", () => {
-  it("parses keys with inline comments", () => {
-    const records = parseWithComments(sampleEnv);
-    const db = records.find((r) => r.key === "DB_HOST");
-    expect(db?.value).toBe("localhost");
-    expect(db?.comment).toBe("primary db");
+  it("parses entries with associated comments", () => {
+    const entries = parseWithComments(sampleEnv);
+    expect(entries.length).toBeGreaterThan(0);
+    const appEntry = entries.find((e) => e.key === "APP_NAME");
+    expect(appEntry).toBeDefined();
+    expect(appEntry?.comment).toBe("App settings");
   });
 
-  it("returns null comment for lines without inline comment", () => {
-    const records = parseWithComments(sampleEnv);
-    const port = records.find((r) => r.key === "DB_PORT");
-    expect(port?.comment).toBeNull();
-  });
-
-  it("skips full-line comments and blank lines", () => {
-    const records = parseWithComments(sampleEnv);
-    expect(records.every((r) => r.key !== "")).toBe(true);
-    expect(records.length).toBe(4);
+  it("handles entries without comments", () => {
+    const entries = parseWithComments("FOO=bar\nBAZ=qux\n");
+    expect(entries.every((e) => !e.comment)).toBe(true);
   });
 });
 
 describe("applyComments", () => {
-  it("adds comments to specified keys", () => {
-    const result = applyComments("DB_PORT=5432\nDEBUG=true", {
-      DB_PORT: "tcp port",
+  it("applies comments to matching keys", () => {
+    const entries = parseWithComments("DB_HOST=localhost\nAPI_KEY=secret\n");
+    const updated = applyComments(entries, {
+      DB_HOST: "Database hostname",
+      API_KEY: "Third-party API key",
     });
-    expect(result).toContain("DB_PORT=5432 # tcp port");
-    expect(result).toContain("DEBUG=true");
+    expect(updated.find((e) => e.key === "DB_HOST")?.comment).toBe(
+      "Database hostname"
+    );
+    expect(updated.find((e) => e.key === "API_KEY")?.comment).toBe(
+      "Third-party API key"
+    );
   });
 
-  it("replaces existing inline comment", () => {
-    const result = applyComments("API_KEY=secret # old comment", {
-      API_KEY: "new comment",
-    });
-    expect(result).toBe("API_KEY=secret # new comment");
-  });
-
-  it("leaves lines without a matching key unchanged", () => {
-    const result = applyComments("FOO=bar", {});
-    expect(result).toBe("FOO=bar");
+  it("ignores keys not present in env", () => {
+    const entries = parseWithComments("FOO=bar\n");
+    const updated = applyComments(entries, { MISSING: "nope" });
+    expect(updated.find((e) => e.key === "MISSING")).toBeUndefined();
   });
 });
 
 describe("stripComments", () => {
-  it("removes inline comments from all lines", () => {
-    const result = stripComments(sampleEnv);
-    expect(result).not.toContain("# primary db");
-    expect(result).not.toContain("# keep private");
-  });
-
-  it("preserves full-line comments", () => {
-    const result = stripComments(sampleEnv);
-    expect(result).toContain("# header comment");
-  });
-
-  it("preserves keys and values", () => {
-    const result = stripComments("DB_HOST=localhost # comment");
-    expect(result).toBe("DB_HOST=localhost");
+  it("removes all comments from entries", () => {
+    const entries = parseWithComments(sampleEnv);
+    const stripped = stripComments(entries);
+    expect(stripped.every((e) => !e.comment)).toBe(true);
   });
 });
 
 describe("formatCommentResult", () => {
-  it("serialises records with comments", () => {
-    const out = formatCommentResult([
-      { key: "A", value: "1", comment: "note" },
-      { key: "B", value: "2", comment: null },
-    ]);
-    expect(out).toBe("A=1 # note\nB=2");
+  it("serializes entries with comments", () => {
+    const entries = parseWithComments("DB_HOST=localhost\n");
+    const withComment = applyComments(entries, { DB_HOST: "The DB host" });
+    const output = formatCommentResult(withComment);
+    expect(output).toContain("# The DB host");
+    expect(output).toContain("DB_HOST=localhost");
+  });
+
+  it("serializes entries without comments cleanly", () => {
+    const entries = parseWithComments("FOO=bar\n");
+    const output = formatCommentResult(stripComments(entries));
+    expect(output).toBe("FOO=bar\n");
   });
 });

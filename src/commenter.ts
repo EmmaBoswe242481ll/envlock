@@ -1,77 +1,55 @@
-/**
- * commenter.ts
- * Add, update, or strip inline comments from .env files.
- */
-
-export interface CommentedRecord {
+export interface CommentedEntry {
   key: string;
   value: string;
-  comment: string | null;
+  comment?: string;
 }
 
-/**
- * Parse env content into records preserving inline comments.
- */
-export function parseWithComments(content: string): CommentedRecord[] {
-  return content
-    .split("\n")
-    .filter((line) => line.trim() && !line.trim().startsWith("#"))
-    .map((line) => {
-      const eqIdx = line.indexOf("=");
-      if (eqIdx === -1) return null;
-      const key = line.slice(0, eqIdx).trim();
-      const rest = line.slice(eqIdx + 1);
-      const commentIdx = rest.search(/ #/);
-      if (commentIdx !== -1) {
-        return {
-          key,
-          value: rest.slice(0, commentIdx).trim(),
-          comment: rest.slice(commentIdx + 2).trim(),
-        };
-      }
-      return { key, value: rest.trim(), comment: null };
-    })
-    .filter((r): r is CommentedRecord => r !== null);
+export function parseWithComments(content: string): CommentedEntry[] {
+  const lines = content.split("\n");
+  const entries: CommentedEntry[] = [];
+  let pendingComment: string | undefined;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) {
+      pendingComment = trimmed.slice(1).trim();
+      continue;
+    }
+    if (!trimmed || !trimmed.includes("=")) {
+      pendingComment = undefined;
+      continue;
+    }
+    const eqIdx = trimmed.indexOf("=");
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    entries.push({ key, value, comment: pendingComment });
+    pendingComment = undefined;
+  }
+  return entries;
 }
 
-/**
- * Apply a map of key -> comment to existing env content.
- */
 export function applyComments(
-  content: string,
+  entries: CommentedEntry[],
   comments: Record<string, string>
-): string {
-  return content
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return line;
-      const eqIdx = line.indexOf("=");
-      if (eqIdx === -1) return line;
-      const key = line.slice(0, eqIdx).trim();
-      if (!comments[key]) return line;
-      const bare = line.replace(/ #.*$/, "").trimEnd();
-      return `${bare} # ${comments[key]}`;
-    })
-    .join("\n");
+): CommentedEntry[] {
+  return entries.map((entry) =>
+    comments[entry.key] !== undefined
+      ? { ...entry, comment: comments[entry.key] }
+      : entry
+  );
 }
 
-/**
- * Strip all inline comments from env content.
- */
-export function stripComments(content: string): string {
-  return content
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return line;
-      return line.replace(/ #.*$/, "").trimEnd();
-    })
-    .join("\n");
+export function stripComments(entries: CommentedEntry[]): CommentedEntry[] {
+  return entries.map(({ key, value }) => ({ key, value }));
 }
 
-export function formatCommentResult(records: CommentedRecord[]): string {
-  return records
-    .map((r) => (r.comment ? `${r.key}=${r.value} # ${r.comment}` : `${r.key}=${r.value}`))
-    .join("\n");
+export function formatCommentResult(entries: CommentedEntry[]): string {
+  return (
+    entries
+      .map((entry) => {
+        const commentLine = entry.comment ? `# ${entry.comment}\n` : "";
+        return `${commentLine}${entry.key}=${entry.value}`;
+      })
+      .join("\n") + "\n"
+  );
 }
