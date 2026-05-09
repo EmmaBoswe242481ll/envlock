@@ -9,6 +9,10 @@ function write(file: string, content: string) {
   fs.writeFileSync(path.join(TMP_DIR, file), content, 'utf-8');
 }
 
+/**
+ * Runs the CLI with the given arguments in the temporary test directory.
+ * Returns stdout, stderr, and the process exit code.
+ */
 function runCli(args: string): { stdout: string; stderr: string; code: number } {
   try {
     const stdout = execSync(`npx ts-node ${CLI_PATH} ${args}`, {
@@ -23,6 +27,13 @@ function runCli(args: string): { stdout: string; stderr: string; code: number } 
       code: err.status ?? 1,
     };
   }
+}
+
+/**
+ * Returns true if the given file exists in the temporary test directory.
+ */
+function tmpFileExists(file: string): boolean {
+  return fs.existsSync(path.join(TMP_DIR, file));
 }
 
 beforeAll(() => {
@@ -60,7 +71,7 @@ describe('cli snapshot command', () => {
   it('writes a snapshot file', () => {
     write('.env', 'API_KEY=abc\nDB_URL=postgres://localhost/db\n');
     runCli(`snapshot --env .env --snapshot .env.snapshot`);
-    expect(fs.existsSync(path.join(TMP_DIR, '.env.snapshot'))).toBe(true);
+    expect(tmpFileExists('.env.snapshot')).toBe(true);
   });
 });
 
